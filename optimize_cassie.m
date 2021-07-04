@@ -61,6 +61,9 @@ end
 % put LC into vector field terms
 A = celltensorconvert(A);
 
+%% generate optimal coordinates
+optimize_so3(samples, A);
+
 
 %% helper functions
 

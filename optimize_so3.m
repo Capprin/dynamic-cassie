@@ -1,5 +1,7 @@
 % finds SO(3) minimum perturbation coordinates for an n-dim system
-% based heavily on Ross Hatton's reference point optimization
+
+% objective function based on Ross Hatton's SO(3) coordinate optimization
+% quadrature rules based on Becker Carey Oden 5.3.2
 
 % inputs:
     % grid_points: cell array containing vector dimension(s) of points
@@ -34,34 +36,34 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
     % for ea. quad point, value of surrounding points in a hypercube
     basis_cell = cellfun(@(fn) fn(quad_points),basis_fns,...
                          'UniformOutput', false);
-    basis_at_quad = cat(2, basis_cell{:});
+    bases_at_quad = cat(2, basis_cell{:});
     % 2d cell of basis derivatives
     d_basis_cell = cellfun(@(fn) fn(quad_points), d_basis_fns,...
                            'UniformOutput', false);
     % convert to cell of derivative matrices (n_dim matrices)
     % value of derivative of basis, for each quad point's surroundings,
     % along each dimension
-    d_basis_at_quad = cell(1, n_dim);
+    d_bases_at_quad = cell(1, n_dim);
     for i = 1:n_dim
         % concat all (2^n_dim) derivative points into matrix
         % stored in cell corresp. to dimension
-        d_basis_at_quad{i} = cat(2, d_basis_cell{:,i});
+        d_bases_at_quad{i} = cat(2, d_basis_cell{:,i});
     end
     
     %% scale quadrature points according to problem coordinates
     % big assumption: regular grid spacing
     % preallocate space
-    quad_points_act = cell(n_dim, 1); % points in each dimension
+    bases_at_quad_act = cell(n_dim, 1); % points in each dimension
     quad_deriv_points_act = cell(n_dim, n_dim); % points w.r.t. ea. dim.
     for i = 1:n_dim
-        % SCALES ea. quadpoint by size of cube in ea. dim
+        % SCALES ea. value by size of cube in ea. dim
         % assumes a regular grid, and can be done because linear basis
-        quad_points_act{i} = basis_at_quad * nodes(cubes(1,:), i);
+        bases_at_quad_act{i} = bases_at_quad * nodes(cubes(1,:), i);
         
         % do derivatives for this dim
         for j =1:n_dim
             % derivatives along all other (jth) dimensions for ith dim
-            quad_deriv_points_act{i, j} = d_basis_at_quad{j} * nodes(cubes(1,:), i);
+            quad_deriv_points_act{i, j} = d_bases_at_quad{j} * nodes(cubes(1,:), i);
         end
     end
     
@@ -78,7 +80,7 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
                                 ones(1,n_dim));
     % finally, construct rescaled cell of derivative matrices
     for i = 1:n_dim %loop along ea. dimension
-        d_basis_at_quad{i} = cat(2, d_basis_cell_act{:,i});
+        d_bases_at_quad{i} = cat(2, d_basis_cell_act{:,i});
     end
     
     %% collect ingredients for calculus over the field
@@ -89,10 +91,10 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
     
     % nabla (del, gradient)
     % derivative of each basis fn, in each direction, at each vertex
-    del_dim = cat(1, d_basis_at_quad{:}); %(n_points)n_dim x n_vertices
+    del_dim = cat(1, d_bases_at_quad{:}); %(n_points)n_dim x n_vertices
     
     % rho
-    rho = basis_at_quad;
+    rho = bases_at_quad_act;
     
     % gradient of basis functions
     grad_rho_dim = del_dim; % equal; all fns over field are linear w.r.t. basis fns
