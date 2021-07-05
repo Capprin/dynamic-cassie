@@ -6,8 +6,8 @@
 % inputs:
     % grid_points: cell array containing vector dimension(s) of points
     % A_orig: 
-        % local connection tensoral object, of corresponding
-        % dimensionality
+        % local connection tensoral object
+        % ought to be a (n_dim)x(n_dim)x...x(n_dim) cell of 3x... matrices
 % outputs:
     % beta: n-dim coordinate transform
     % A_opt:
@@ -91,21 +91,44 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
     
     % nabla (del, gradient)
     % derivative of each basis fn, in each direction, at each vertex
-    del_dim = cat(1, d_bases_at_quad{:}); %(n_points)n_dim x n_vertices
-    
-    % rho
-    rho = bases_at_quad_act;
+    del_dim = cat(1, d_bases_at_quad{:}); %(n_points)(n_dim) x n_vertices
     
     % gradient of basis functions
     grad_rho_dim = del_dim; % equal; all fns over field are linear w.r.t. basis fns
     
-    % grad_rho dot nabla
-    grad_rho_dot_del_dim = cell(1, n_vertices); %gradient at each vertex
+    %% integrate ingredients, simplifying math later
+    
+    % gradient dot product (correct)
+    grad_rho_dot_del = cell(1, n_vertices); %values at each vertex
     for i = 1:n_vertices
-        grad_rho_dot_del_dim{i} = repmat(grad_rho_dim(:,i), 1, n_vertices) .* del_dim;
+        gradient = repmat(grad_rho_dim(:,i), 1, n_vertices) .* del_dim;
+        grad_rho_dot_del{i} = quad_weights_dim * gradient;
     end
     
+    % gradient scaled by rho (probably correct)
+    grad_rho_dot_rho = cell(n_dim, n_vertices);
+    for i = 1:n_dim
+        for j = 1:n_vertices
+            gradient_scaled = repmat(d_bases_at_quad{i}(:,j), 1, n_vertices) .* bases_at_quad;
+            grad_rho_dot_rho{i,j} = quad_weights' * gradient_scaled;              
+        end
+    end
+    
+    % rho scaled by rho (maybe correct)
+    rho_dot_rho_all = zeros(n_vertices, n_vertices, n_points);
+    for i = 1:n_points
+        % multiply all bases at this point, generating (2^N)x(2^N) matrix
+        bases_scaled = bases_at_quad(i,:)' * bases_at_quad(i,:);
+        % integrate
+        rho_dot_rho_all(:,:,i) = quad_weights(i) * bases_scaled;
+    end
+    rho_dot_rho_mat = sum(rho_dot_rho_all, 3);
+    rho_dot_rho = mat2cell(rho_dot_rho_mat, ones(1,n_vertices), n_vertices)';
+    
     %% construct linear system from objective functions
+    % organization:
+        % rows are blocked out by equation
+        % columns are blocked out by weights (x, y, z)
     % LHS:
         % 3 equations, evaluated at n_nodes points
         % assigning 3 weights (x, y, z) for each node\
@@ -113,9 +136,11 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
     % RHS: vector result of an area integral
     RHS = zeros(3*n_nodes, 1);
     
-    % organization:
-        % rows are blocked out by equation
-        % columns are blocked out by weights (x, y, z)
+    % reorganize LC (by rotational component, and by node, for later)
+    % each (n_nodes)x(n_dim) organized in x,y,z pages
+    A_nodes = cat(3, grid_to_columns(A_orig(1,:)),...
+                     grid_to_columns(A_orig(2,:)),...
+                     grid_to_columns(A_orig(3,:)));
     
     % add contributions from each node (rows of LHS, RHS)
     for n = 1:n_nodes
@@ -124,7 +149,25 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
         % contributions are integral values at this node, summed over all
         % adjacent hypercubes
         for c = 1:size(cubes_containing_node, 1)
-            % TODO: codify objective function
+            % identify corner with node of interest
+            corner_idx = cubes_containing_node(c, :) == n;
+            
+            % get LC at cube vertices (breaking into components)
+            A_x = A_nodes(cubes_containing_node(c,:),:,1);
+            A_y = A_nodes(cubes_containing_node(c,:),:,2);
+            A_z = A_nodes(cubes_containing_node(c,:),:,3);
+            
+            % generally, need:
+                % rho (and its gradient) at this node
+                % rho (and its gradient) everywhere in the hypercube
+            
+            % build each term (everywhere in cube)
+            
+            % get value for corner of interest, and slot into matrix
+            % should end up with a column for every node (confirm pls)
+                % LHS(1:n_nodes) = [x_xcols, x_ycols, x_zcols]
+                % LHS(n_nodes+1,2*n_nodes) = [y_xcols, y_ycols, y_zcols]
+                % LHS(2*n_nodes+1:end) = [z_xcols, z_ycols, z_zcols]
         end
     end
 end
