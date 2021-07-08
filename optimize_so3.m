@@ -221,15 +221,34 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
             LHS(z.row, y.col) = LHS(z.row, y.col) + z.ycols;
             LHS(z.row, z.col) = LHS(z.row, z.col) + z.zcols;
             
-            % compute RHS gradient terms
-            %[grad_rho_A_x, grad_rho_A_y, grad_rho_A_z] = deal(cell(1, n_dim));
-            %for d = 1:n_dim
-            %    grad_rho_A_x = quad_weights(:)' * (repmat(d_bases_at_quad{d}(:,corner_idx), 1, n_vertices) .* repmat(A_x_q
-            %end
-            
-            % construct RHS matrix
+            % compute RHS gradient terms, integrating as we go
+            for d = 1:n_dim
+                grad_rho_A_x = quad_weights(:)' *...
+                               (repmat(d_bases_at_quad{d}(:,corner_idx), 1, n_vertices) .*...
+                                repmat(A_x_q(:,d), 1, n_vertices));
+                grad_rho_A_y = quad_weights(:)' *...
+                               (repmat(d_bases_at_quad{d}(:,corner_idx), 1, n_vertices) .*...
+                                repmat(A_y_q(:,d), 1, n_vertices));
+                grad_rho_A_z = quad_weights(:)' *...
+                               (repmat(d_bases_at_quad{d}(:,corner_idx), 1, n_vertices) .*...
+                                repmat(A_z_q(:,d), 1, n_vertices));
+                
+                % assign RHS
+                rhs_cols = nodes_in_cube + (d-1) * n_nodes;
+                RHS(x.row, rhs_cols) = RHS(x.row, rhs_cols) + grad_rho_A_x;
+                RHS(y.row, rhs_cols) = RHS(y.row, rhs_cols) + grad_rho_A_y;
+                RHS(z.row, rhs_cols) = RHS(z.row, rhs_cols) + grad_rho_A_z;
+            end
         end
     end
+    
+    % TODO
+    % big problem: both LHS and RHS are mostly empty. why?
+        % is the LC close to zero?
+        % is indexing done incorrectly?
+        % is some value computed incorrectly, zeroing others?
+    
+    beta = LHS\RHS;
     
 end
     

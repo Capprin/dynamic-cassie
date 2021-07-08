@@ -62,7 +62,7 @@ end
 A = celltensorconvert(A);
 
 %% generate optimal coordinates
-optimize_so3(samples, A);
+beta = optimize_so3(samples, A);
 
 
 %% helper functions
