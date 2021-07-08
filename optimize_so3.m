@@ -9,7 +9,7 @@
         % local connection tensoral object
         % ought to be a (n_dim)x(n_dim)x...x(n_dim) cell of 3x... matrices
 % outputs:
-    % beta: n-dim coordinate transform
+    % beta: 3D coordinate transform
     % A_opt:
         % local connection tensoral object, in optimal coordinates
 
@@ -96,6 +96,10 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
     % gradient of basis functions
     grad_rho_dim = del_dim; % equal; all fns over field are linear w.r.t. basis fns
     
+    % rho
+    rho_q = bases_at_quad;
+    rho_q_dim = repmat(rho_q, n_dim, 1);
+    
     %% integrate ingredients, simplifying math later
     
     % gradient dot product (correct)
@@ -114,17 +118,6 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
         end
     end
     
-    % rho scaled by rho (maybe correct)
-    rho_dot_rho_all = zeros(n_vertices, n_vertices, n_points);
-    for i = 1:n_points
-        % multiply all bases at this point, generating (2^N)x(2^N) matrix
-        bases_scaled = bases_at_quad(i,:)' * bases_at_quad(i,:);
-        % integrate
-        rho_dot_rho_all(:,:,i) = quad_weights(i) * bases_scaled;
-    end
-    rho_dot_rho_mat = sum(rho_dot_rho_all, 3);
-    rho_dot_rho = mat2cell(rho_dot_rho_mat, ones(1,n_vertices), n_vertices)';
-    
     %% construct linear system from objective functions
     % organization:
         % rows are blocked out by equation
@@ -134,7 +127,8 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
         % assigning 3 weights (x, y, z) for each node\
     LHS = zeros(3*n_nodes);
     % RHS: vector result of an area integral
-    RHS = zeros(3*n_nodes, 1);
+    % manifests as a matrix, so rows of bases/dimensions will be summed
+    RHS = zeros(3*n_nodes, 3*n_nodes*n_dim);
     
     % reorganize LC (by rotational component, and by node, for later)
     % each (n_nodes)x(n_dim) organized in x,y,z pages
@@ -153,22 +147,89 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
             corner_idx = cubes_containing_node(c, :) == n;
             
             % get LC at cube vertices (breaking into components)
-            A_x = A_nodes(cubes_containing_node(c,:),:,1);
-            A_y = A_nodes(cubes_containing_node(c,:),:,2);
-            A_z = A_nodes(cubes_containing_node(c,:),:,3);
+            A_x_vert = A_nodes(cubes_containing_node(c,:),:,1);
+            A_y_vert = A_nodes(cubes_containing_node(c,:),:,2);
+            A_z_vert = A_nodes(cubes_containing_node(c,:),:,3);
+            % get LC at quadrature points
+            A_x_q = bases_at_quad * A_x_vert;
+            A_y_q = bases_at_quad * A_y_vert;
+            A_z_q = bases_at_quad * A_z_vert;
+            % get componentwise dot products
+            A_xx = A_x_q(:).^2;
+            A_yy = A_y_q(:).^2;
+            A_zz = A_z_q(:).^2;
             
-            % generally, need:
-                % rho (and its gradient) at this node
-                % rho (and its gradient) everywhere in the hypercube
+            % compute "vector field squared" terms
+            x_rho_A_q = rho_q_dim(:, corner_idx) .* (A_zz + A_yy);
+            y_rho_A_q = rho_q_dim(:, corner_idx) .* (A_zz - A_xx);
+            z_rho_A_q = rho_q_dim(:, corner_idx) .* (A_yy + A_xx);
+            % integrate
+            x_rho_A = quad_weights_dim * (repmat(x_rho_A_q, 1, n_vertices) .* rho_q_dim);
+            y_rho_A = quad_weights_dim * (repmat(y_rho_A_q, 1, n_vertices) .* rho_q_dim);
+            z_rho_A = quad_weights_dim * (repmat(z_rho_A_q, 1, n_vertices) .* rho_q_dim);
+            
+            % compute "leading gradient" terms
+            grad_rho_A_x_q = grad_rho_dim(:, corner_idx) .* A_x_q(:);
+            grad_rho_A_y_q = grad_rho_dim(:, corner_idx) .* A_y_q(:);
+            grad_rho_A_z_q = grad_rho_dim(:, corner_idx) .* A_z_q(:);
+            % integrate
+            grad_rho_A_x_rho = quad_weights_dim * (repmat(grad_rho_A_x_q, 1, n_vertices) .* rho_q_dim);
+            grad_rho_A_y_rho = quad_weights_dim * (repmat(grad_rho_A_y_q, 1, n_vertices) .* rho_q_dim);
+            grad_rho_A_z_rho = quad_weights_dim * (repmat(grad_rho_A_z_q, 1, n_vertices) .* rho_q_dim);
+            
+            % compute "leading rho" terms
+            rho_A_x_grad_q = repmat(rho_q_dim(:, corner_idx), 1, n_vertices) .* repmat(A_x_q(:), 1, n_vertices) .* del_dim;
+            rho_A_y_grad_q = repmat(rho_q_dim(:, corner_idx), 1, n_vertices) .* repmat(A_y_q(:), 1, n_vertices) .* del_dim;
+            rho_A_z_grad_q = repmat(rho_q_dim(:, corner_idx), 1, n_vertices) .* repmat(A_z_q(:), 1, n_vertices) .* del_dim;
+            % integrate
+            rho_A_x_grad = quad_weights_dim * rho_A_x_grad_q;
+            rho_A_y_grad = quad_weights_dim * rho_A_y_grad_q;
+            rho_A_z_grad = quad_weights_dim * rho_A_z_grad_q;
             
             % build each term (everywhere in cube)
+            x.xcols = grad_rho_dot_del{corner_idx} + x_rho_A;
+            x.ycols = grad_rho_A_z_rho - rho_A_z_grad;
+            x.zcols = -grad_rho_A_y_rho + rho_A_y_grad;
             
-            % get value for corner of interest, and slot into matrix
-            % should end up with a column for every node (confirm pls)
-                % LHS(1:n_nodes) = [x_xcols, x_ycols, x_zcols]
-                % LHS(n_nodes+1,2*n_nodes) = [y_xcols, y_ycols, y_zcols]
-                % LHS(2*n_nodes+1:end) = [z_xcols, z_ycols, z_zcols]
+            y.xcols = grad_rho_A_z_rho + rho_A_z_grad;
+            y.ycols = grad_rho_dot_del{corner_idx} + y_rho_A;
+            y.zcols = -grad_rho_A_x_rho - rho_A_x_grad;
+            
+            z.xcols = grad_rho_A_y_rho - rho_A_y_grad;
+            z.ycols = -grad_rho_A_x_rho + rho_A_x_grad;
+            z.zcols = grad_rho_dot_del{corner_idx} + z_rho_A;
+            
+            % identify indices
+            nodes_in_cube = cubes(c,:);
+            x.row = n;
+            x.col = nodes_in_cube;
+            y.row = n + n_dim;
+            y.col = nodes_in_cube + n_vertices;
+            z.row = n + 2*n_dim;
+            z.col = nodes_in_cube + 2*n_vertices;
+            
+            % construct LHS matrix
+            LHS(x.row, x.col) = LHS(x.row, x.col) + x.xcols;
+            LHS(x.row, y.col) = LHS(x.row, y.col) + x.ycols;
+            LHS(x.row, z.col) = LHS(x.row, z.col) + x.zcols;
+            
+            LHS(y.row, x.col) = LHS(y.row, x.col) + y.xcols;
+            LHS(y.row, y.col) = LHS(y.row, y.col) + y.ycols;
+            LHS(y.row, z.col) = LHS(y.row, z.col) + y.zcols;
+            
+            LHS(z.row, x.col) = LHS(z.row, x.col) + z.xcols;
+            LHS(z.row, y.col) = LHS(z.row, y.col) + z.ycols;
+            LHS(z.row, z.col) = LHS(z.row, z.col) + z.zcols;
+            
+            % compute RHS gradient terms
+            %[grad_rho_A_x, grad_rho_A_y, grad_rho_A_z] = deal(cell(1, n_dim));
+            %for d = 1:n_dim
+            %    grad_rho_A_x = quad_weights(:)' * (repmat(d_bases_at_quad{d}(:,corner_idx), 1, n_vertices) .* repmat(A_x_q
+            %end
+            
+            % construct RHS matrix
         end
     end
+    
 end
     
