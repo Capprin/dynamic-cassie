@@ -203,10 +203,10 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
             nodes_in_cube = cubes(c,:);
             x.row = n;
             x.col = nodes_in_cube;
-            y.row = n + n_dim;
-            y.col = nodes_in_cube + n_vertices;
-            z.row = n + 2*n_dim;
-            z.col = nodes_in_cube + 2*n_vertices;
+            y.row = n + n_nodes;
+            y.col = nodes_in_cube + n_nodes;
+            z.row = n + 2*n_nodes;
+            z.col = nodes_in_cube + 2*n_nodes;
             
             % construct LHS matrix
             LHS(x.row, x.col) = LHS(x.row, x.col) + x.xcols;
@@ -241,12 +241,6 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
             end
         end
     end
-    
-    % TODO
-    % big problem: both LHS and RHS are mostly empty. why?
-        % is the LC close to zero?
-        % is indexing done incorrectly?
-        % is some value computed incorrectly, zeroing others?
     
     beta = LHS\RHS;
     
