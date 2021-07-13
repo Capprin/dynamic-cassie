@@ -13,7 +13,7 @@
     % A_opt:
         % local connection tensoral object, in optimal coordinates
 
-function [beta, A_opt] = optimize_so3(grid_points, A_orig)
+function [beta, A_opt] = optimize_so3(grid_points, A_orig, reference)
     % dimensionality
     n_dim = length(grid_points);
     
@@ -100,22 +100,11 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
     rho_q = bases_at_quad;
     rho_q_dim = repmat(rho_q, n_dim, 1);
     
-    %% integrate ingredients, simplifying math later
-    
-    % gradient dot product (correct)
+    % gradient dot product, integrated early
     grad_rho_dot_del = cell(1, n_vertices); %values at each vertex
     for i = 1:n_vertices
         gradient = repmat(grad_rho_dim(:,i), 1, n_vertices) .* del_dim;
         grad_rho_dot_del{i} = quad_weights_dim * gradient;
-    end
-    
-    % gradient scaled by rho (probably correct)
-    grad_rho_dot_rho = cell(n_dim, n_vertices);
-    for i = 1:n_dim
-        for j = 1:n_vertices
-            gradient_scaled = repmat(d_bases_at_quad{i}(:,j), 1, n_vertices) .* bases_at_quad;
-            grad_rho_dot_rho{i,j} = quad_weights' * gradient_scaled;              
-        end
     end
     
     %% construct linear system from objective functions
@@ -128,7 +117,7 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
     LHS = zeros(3*n_nodes);
     % RHS: vector result of an area integral
     % manifests as a matrix, so rows of bases/dimensions will be summed
-    RHS = zeros(3*n_nodes, 3*n_nodes*n_dim);
+    RHS = zeros(3*n_nodes, n_nodes*n_dim);
     
     % reorganize LC (by rotational component, and by node, for later)
     % each (n_nodes)x(n_dim) organized in x,y,z pages
@@ -159,6 +148,7 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
             A_yy = A_y_q(:).^2;
             A_zz = A_z_q(:).^2;
             
+            
             % compute "vector field squared" terms
             x_rho_A_q = rho_q_dim(:, corner_idx) .* (A_zz + A_yy);
             y_rho_A_q = rho_q_dim(:, corner_idx) .* (A_zz - A_xx);
@@ -186,6 +176,7 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
             rho_A_y_grad = quad_weights_dim * rho_A_y_grad_q;
             rho_A_z_grad = quad_weights_dim * rho_A_z_grad_q;
             
+            
             % build each term (everywhere in cube)
             x.xcols = grad_rho_dot_del{corner_idx} + x_rho_A;
             x.ycols = grad_rho_A_z_rho - rho_A_z_grad;
@@ -200,7 +191,7 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
             z.zcols = grad_rho_dot_del{corner_idx} + z_rho_A;
             
             % identify indices
-            nodes_in_cube = cubes(c,:);
+            nodes_in_cube = cubes_containing_node(c,:);
             x.row = n;
             x.col = nodes_in_cube;
             y.row = n + n_nodes;
@@ -220,6 +211,7 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
             LHS(z.row, x.col) = LHS(z.row, x.col) + z.xcols;
             LHS(z.row, y.col) = LHS(z.row, y.col) + z.ycols;
             LHS(z.row, z.col) = LHS(z.row, z.col) + z.zcols;
+            
             
             % compute RHS gradient terms, integrating as we go
             for d = 1:n_dim
@@ -242,7 +234,24 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig)
         end
     end
     
-    beta = LHS\RHS;
+    %% solve for weights
+    % potential to remove rows/cols corresp. to reference configuration
+    % introduces a static rotation to coordinates (TBD if valid; commented)
+    if ~exist('reference', 'var')
+        % get "middle" of supplied samples as reference
+        reference = cellfun(@(vec) vec(ceil(length(vec)/2)), grid_points);
+    end
+    ref_node = find(all(nodes == reference, 2));
+    ref_idxs = ref_node + [0 1 2]*n_nodes;
+    % remove reference node(s)
+    %LHS(ref_idxs, :) = [];
+    %LHS(:, ref_idxs) = [];
+    %RHS(ref_idxs, :) = [];
     
+    % solve matrix eqn
+    beta = lsqminnorm(LHS,RHS);
+    
+    %% construct optimal local connection using transform
+    A_opt = A_orig;
 end
     
