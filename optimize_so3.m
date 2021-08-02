@@ -13,7 +13,7 @@
     % A_opt:
         % local connection tensoral object, in optimal coordinates
 
-function [beta, A_opt] = optimize_so3(grid_points, A_orig, reference)
+function [grid, X, Y, Z] = optimize_so3(grid_points, A_orig, reference)
     % dimensionality
     n_dim = length(grid_points);
     
@@ -251,7 +251,17 @@ function [beta, A_opt] = optimize_so3(grid_points, A_orig, reference)
     % solve matrix eqn
     beta = lsqminnorm(LHS,RHS);
     
-    %% construct optimal local connection using transform
-    A_opt = A_orig;
+    %% construct X, Y, Z interpolating grids
+    % get grid points as single column
+    dims_cat = cellfun(@(dim) repmat(dim, n_nodes/length(dim), 1), grid_points, 'UniformOutput', false);
+    grid_cat = cat(1, dims_cat{:});
+    
+    % evaluate beta at gridpoints
+    beta_eval = beta * grid_cat;
+    
+    % reshape to X, Y, Z matrices
+    X = reshape(beta_eval(1:n_nodes), size(grid{1}));
+    Y = reshape(beta_eval(1+n_nodes:2*n_nodes), size(grid{1}));
+    Z = reshape(beta_eval(1+2*n_nodes:end), size(grid{1}));
 end
     

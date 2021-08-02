@@ -61,12 +61,11 @@ end
 % put LC into vector field terms
 A = celltensorconvert(A);
 
-%% generate optimal coordinates
-beta = optimize_so3(samples, A);
-
+%% generate optimal coordinate transform
+[grid, X, Y, Z] = optimize_so3(samples, A);
+save('cassie.mat', 'motors', 'A', 'grid', 'X', 'Y', 'Z');
 
 %% helper functions
-
 % generates local connection from a single M matrix
 function A = get_local_conn(M_mat)
     % matrix structure: [rx, ry, rz, L motors, R motors]
