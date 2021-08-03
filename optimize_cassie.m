@@ -63,7 +63,7 @@ A = celltensorconvert(A);
 
 %% generate optimal coordinate transform
 [grid, X, Y, Z] = optimize_so3(samples, A);
-save('cassie.mat', 'motors', 'A', 'grid', 'X', 'Y', 'Z');
+save('cassie.mat', 'motors', 'A', 'samples', 'grid', 'X', 'Y', 'Z');
 
 %% helper functions
 % generates local connection from a single M matrix
