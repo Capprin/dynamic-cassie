@@ -55,10 +55,12 @@ def interpolating_function(**kwargs):
 if __name__ == "__main__":
   # data loading
   trans_dict = load_data()
+
   # interpolation, returning full interpolation data
   alpha = np.array([0.1, 0.75, -1.2, 0, 0.75, -1.2])
   interp = interpolate_so3(trans_dict, alpha)
   print('full interpolation data:', '\n', interp)
+  
   # construction of interpolating function
   interp_fn = interpolating_function()
   print('simplified rotation matrix:',  '\n', interp_fn(alpha))
