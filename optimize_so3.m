@@ -8,12 +8,17 @@
     % A_orig: 
         % local connection tensoral object
         % ought to be a (n_dim)x(n_dim)x...x(n_dim) cell of 3x... matrices
+    % ref:
+        % choice of origin configuration (in the shape space)
 % outputs:
-    % beta: 3D coordinate transform
+    % grid:
+        % ndgrid cell array representaion of grid_points
+    % X, Y, Z:
+        % beta transform in each SO(3) dimension, expressed at grid points
     % A_opt:
         % local connection tensoral object, in optimal coordinates
 
-function [grid, X, Y, Z] = optimize_so3(grid_points, A_orig, reference)
+function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
     % dimensionality
     n_dim = length(grid_points);
     
@@ -103,8 +108,8 @@ function [grid, X, Y, Z] = optimize_so3(grid_points, A_orig, reference)
     % gradient dot product, integrated early
     grad_rho_dot_del = cell(1, n_vertices); %values at each vertex
     for i = 1:n_vertices
-        gradient = repmat(grad_rho_dim(:,i), 1, n_vertices) .* del_dim;
-        grad_rho_dot_del{i} = quad_weights_dim * gradient;
+        grad = repmat(grad_rho_dim(:,i), 1, n_vertices) .* del_dim;
+        grad_rho_dot_del{i} = quad_weights_dim * grad;
     end
     
     %% construct linear system from objective functions
@@ -237,11 +242,11 @@ function [grid, X, Y, Z] = optimize_so3(grid_points, A_orig, reference)
     %% solve for weights
     % potential to remove rows/cols corresp. to reference configuration
     % introduces a static rotation to coordinates (TBD if valid; commented)
-    if ~exist('reference', 'var')
+    if ~exist('ref', 'var')
         % get "middle" of supplied samples as reference
-        reference = cellfun(@(vec) vec(ceil(length(vec)/2)), grid_points);
+        ref = cellfun(@(vec) vec(ceil(length(vec)/2)), grid_points);
     end
-    ref_node = find(all(nodes == reference, 2));
+    ref_node = find(all(nodes == ref, 2));
     ref_idxs = ref_node + [0 1 2]*n_nodes;
     % remove reference node(s)
     %LHS(ref_idxs, :) = [];
@@ -263,5 +268,19 @@ function [grid, X, Y, Z] = optimize_so3(grid_points, A_orig, reference)
     X = reshape(beta_eval(1:n_nodes), size(grid{1}));
     Y = reshape(beta_eval(1+n_nodes:2*n_nodes), size(grid{1}));
     Z = reshape(beta_eval(1+2*n_nodes:end), size(grid{1}));
+    
+    %% calculate optimized local connection
+    % compute gradients
+    [grad_X, grad_Y, grad_Z] = deal(cell(1,n_dim));
+    [grad_X{:}] = gradient(X, grid_points{:});
+    [grad_Y{:}] = gradient(Y, grid_points{:});
+    [grad_Z{:}] = gradient(Z, grid_points{:});
+    % fill optimized LC
+    A_opt = cell(size(A_orig));
+    for dim = 1:n_dim
+        A_opt{1,dim} = A_orig{1,dim} + Z.*A_orig{2,dim} - Y.*A_orig{3,dim} + grad_X{dim};
+        A_opt{2,dim} = A_orig{2,dim} - Z.*A_orig{1,dim} + X.*A_orig{3,dim} + grad_Y{dim};
+        A_opt{3,dim} = A_orig{3,dim} + Y.*A_orig{1,dim} - X.*A_orig{2,dim} + grad_Z{dim};
+    end
 end
     

@@ -6,7 +6,8 @@
 %% variables
 % hip roll, hip pitch, hip yaw, knee, ankle
 % organized as [left, right] by index
-motors = [[1 3 4], [1 3 4]+5];
+%motors = [[1 3 4], [1 3 4]+5];
+motors = [1, 6];
 
 %% setup
 % constrain state space
@@ -62,7 +63,7 @@ end
 A = celltensorconvert(A);
 
 %% generate optimal coordinate transform
-[grid, X, Y, Z] = optimize_so3(samples, A);
+[grid, X, Y, Z, A_opt] = optimize_so3(samples, A);
 save('cassie.mat', 'motors', 'A', 'samples', 'grid', 'X', 'Y', 'Z');
 
 %% helper functions
