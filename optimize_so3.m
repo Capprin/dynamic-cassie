@@ -118,7 +118,7 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
         % columns are blocked out by weights (x, y, z)
     % LHS:
         % 3 equations, evaluated at n_nodes points
-        % assigning 3 weights (x, y, z) for each node\
+        % assigning 3 weights (x, y, z) for each node
     LHS = zeros(3*n_nodes);
     % RHS: vector result of an area integral
     % manifests as a matrix, so rows of bases/dimensions will be summed
@@ -164,6 +164,7 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
             z_rho_A = quad_weights_dim * (repmat(z_rho_A_q, 1, n_vertices) .* rho_q_dim);
             
             % compute "leading gradient" terms
+            % TODO: is this ordering correct?
             grad_rho_A_x_q = grad_rho_dim(:, corner_idx) .* A_x_q(:);
             grad_rho_A_y_q = grad_rho_dim(:, corner_idx) .* A_y_q(:);
             grad_rho_A_z_q = grad_rho_dim(:, corner_idx) .* A_z_q(:);
@@ -241,17 +242,17 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
     
     %% solve for weights
     % potential to remove rows/cols corresp. to reference configuration
-    % introduces a static rotation to coordinates (TBD if valid; commented)
+    % introduces a static rotation to coordinates
     if ~exist('ref', 'var')
         % get "middle" of supplied samples as reference
         ref = cellfun(@(vec) vec(ceil(length(vec)/2)), grid_points);
     end
-    ref_node = find(all(nodes == ref, 2));
+    ref_node = find(all(nodes == ref', 2));
     ref_idxs = ref_node + [0 1 2]*n_nodes;
     % remove reference node(s)
-    %LHS(ref_idxs, :) = [];
-    %LHS(:, ref_idxs) = [];
-    %RHS(ref_idxs, :) = [];
+    LHS(ref_idxs, :) = [];
+    LHS(:, ref_idxs) = [];
+    RHS(ref_idxs, :) = [];
     
     % solve matrix eqn
     beta = lsqminnorm(LHS,RHS);
@@ -263,6 +264,10 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
     
     % evaluate beta at gridpoints
     beta_eval = beta * grid_cat;
+    % add zero rows for reference configuration
+    for i = 1:3
+        beta_eval = [beta_eval(1:ref_idxs(i)-1); 0; beta_eval(ref_idxs(i):end)];
+    end
     
     % reshape to X, Y, Z matrices
     X = reshape(beta_eval(1:n_nodes), size(grid{1}));
