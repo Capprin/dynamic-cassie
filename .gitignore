@@ -1,3 +1,4 @@
 6_dof_sweep.txt
 cassieInertia.txt
 *.log
+test/*.mat
