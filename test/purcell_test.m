@@ -5,6 +5,7 @@
 
 %% load sysf
 system = 'sysf_three_link_lowRe';
+%system = 'sysf_twin_rotor';
 sys_calcsystem('calculate', system);
 load([system '_calc.mat'], 's');
 
@@ -21,21 +22,23 @@ A_orig = [A_orig_full(3,:); z z; z z];
 A_opt_true = [A_opt_full(3,:); z z; z z];
 
 %% use optimize_so3.m on A_orig, grid to produce A_opt_test
-[grid_test, ~, ~, ~, A_opt_test] = optimize_so3(grid_points, A_orig);
+[grid_test, X, Y, Z, A_opt_test] = optimize_so3(grid_points, A_orig);
 
 %% plot X fields for A_opt (use sysplotter fn for coloring?)
 figure(1); clf;
-subplot(1,2,1);
+subplot(1,3,1);
+quiver(grid_true{1}, grid_true{2}, A_orig{1,1}, A_orig{1,2}, 'Color', [0 0 0]);
+axis('square');
+xlabel('\alpha_1'); ylabel('\alpha_2');
+title('A_\theta, original coordinates');
+subplot(1,3,2);
 quiver(grid_true{1}, grid_true{2}, A_opt_true{1,1}, A_opt_true{1,2}, 'Color', [0 0 0]);
 axis('square');
 xlabel('\alpha_1'); ylabel('\alpha_2');
 title('A_\theta, true minimum perturbation coordinates');
-subplot(1,2,2);
+subplot(1,3,3);
 quiver(grid_test{1}, grid_test{2}, A_opt_test{1,1}, A_opt_test{1,2}, 'Color', [0 0 0]);
 axis('square');
 xlim([-3 3]);
 xlabel('\alpha_1'); ylabel('\alpha_2');
 title('A_\theta, test minimum perturbation coordinates');
-
-%% assert equality of A_opt_true and A_opt_test
-% do this
