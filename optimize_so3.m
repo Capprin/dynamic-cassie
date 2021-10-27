@@ -106,10 +106,11 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
     rho_q_dim = repmat(rho_q, n_dim, 1);
     
     % gradient dot product, integrated early
+    detJ = det(J);
     grad_rho_dot_del = cell(1, n_vertices); %values at each vertex
     for i = 1:n_vertices
         grad = repmat(grad_rho_dim(:,i), 1, n_vertices) .* del_dim;
-        grad_rho_dot_del{i} = quad_weights_dim * grad;
+        grad_rho_dot_del{i} = detJ * quad_weights_dim * grad;
     end
     
     %% construct linear system from objective functions
@@ -164,7 +165,6 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
             z_rho_A = quad_weights_dim * (repmat(z_rho_A_q, 1, n_vertices) .* rho_q_dim);
             
             % compute "leading gradient" terms
-            % TODO: is this ordering correct?
             grad_rho_A_x_q = grad_rho_dim(:, corner_idx) .* A_x_q(:);
             grad_rho_A_y_q = grad_rho_dim(:, corner_idx) .* A_y_q(:);
             grad_rho_A_z_q = grad_rho_dim(:, corner_idx) .* A_z_q(:);
@@ -174,9 +174,9 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
             grad_rho_A_z_rho = quad_weights_dim * (repmat(grad_rho_A_z_q, 1, n_vertices) .* rho_q_dim);
             
             % compute "leading rho" terms
-            rho_A_x_grad_q = repmat(rho_q_dim(:, corner_idx), 1, n_vertices) .* repmat(A_x_q(:), 1, n_vertices) .* del_dim;
-            rho_A_y_grad_q = repmat(rho_q_dim(:, corner_idx), 1, n_vertices) .* repmat(A_y_q(:), 1, n_vertices) .* del_dim;
-            rho_A_z_grad_q = repmat(rho_q_dim(:, corner_idx), 1, n_vertices) .* repmat(A_z_q(:), 1, n_vertices) .* del_dim;
+            rho_A_x_grad_q = repmat(rho_q_dim(:, corner_idx).*A_x_q(:), 1, n_vertices) .* del_dim;
+            rho_A_y_grad_q = repmat(rho_q_dim(:, corner_idx).*A_y_q(:), 1, n_vertices) .* del_dim;
+            rho_A_z_grad_q = repmat(rho_q_dim(:, corner_idx).*A_z_q(:), 1, n_vertices) .* del_dim;
             % integrate
             rho_A_x_grad = quad_weights_dim * rho_A_x_grad_q;
             rho_A_y_grad = quad_weights_dim * rho_A_y_grad_q;
@@ -218,37 +218,20 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
             LHS(z.row, y.col) = LHS(z.row, y.col) + z.ycols;
             LHS(z.row, z.col) = LHS(z.row, z.col) + z.zcols;
             
-            
-            % compute RHS gradient terms, integrating as we go
+            % compute RHS gradient
             for d = 1:n_dim
-                grad_rho_A_x = quad_weights(:)' *...
-                               (repmat(d_bases_at_quad{d}(:,corner_idx), 1, n_vertices) .*...
-                                repmat(A_x_q(:,d), 1, n_vertices));
-                grad_rho_A_y = quad_weights(:)' *...
-                               (repmat(d_bases_at_quad{d}(:,corner_idx), 1, n_vertices) .*...
-                                repmat(A_y_q(:,d), 1, n_vertices));
-                grad_rho_A_z = quad_weights(:)' *...
-                               (repmat(d_bases_at_quad{d}(:,corner_idx), 1, n_vertices) .*...
-                                repmat(A_z_q(:,d), 1, n_vertices));
-                
                 % assign RHS
                 rhs_cols = nodes_in_cube + (d-1) * n_nodes;
-                RHS(x.row, rhs_cols) = RHS(x.row, rhs_cols) + grad_rho_A_x;
-                RHS(y.row, rhs_cols) = RHS(y.row, rhs_cols) + grad_rho_A_y;
-                RHS(z.row, rhs_cols) = RHS(z.row, rhs_cols) + grad_rho_A_z;
+                RHS(x.row, rhs_cols) = RHS(x.row, rhs_cols) + detJ * quad_weights' * (repmat(d_bases_at_quad{d}(:,corner_idx).*A_x_q(:,d), 1, n_vertices) .* rho_q);
+                RHS(y.row, rhs_cols) = RHS(y.row, rhs_cols) + detJ * quad_weights' * (repmat(d_bases_at_quad{d}(:,corner_idx).*A_y_q(:,d), 1, n_vertices) .* rho_q);
+                RHS(z.row, rhs_cols) = RHS(z.row, rhs_cols) + detJ * quad_weights' * (repmat(d_bases_at_quad{d}(:,corner_idx).*A_z_q(:,d), 1, n_vertices) .* rho_q);
             end
         end
     end
     
     %% solve for weights
-    % potential to remove rows/cols corresp. to reference configuration
-    % introduces a static rotation to coordinates
-    if ~exist('ref', 'var')
-        % get "middle" of supplied samples as reference
-        ref = cellfun(@(vec) vec(ceil(length(vec)/2)), grid_points);
-    end
-    ref_node = find(all(nodes == ref', 2));
-    ref_idxs = ref_node + [0 1 2]*n_nodes;
+    % remove first row, col to underconstrain
+    ref_idxs = [1 2 3]*n_nodes;
     % remove reference node(s)
     LHS(ref_idxs, :) = [];
     LHS(:, ref_idxs) = [];
@@ -257,16 +240,13 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
     % solve matrix eqn
     beta = lsqminnorm(LHS,RHS);
     
-    %% construct X, Y, Z interpolating grids
-    % get grid points as single column
-    dims_cat = cellfun(@(dim) repmat(dim, n_nodes/length(dim), 1), grid_points, 'UniformOutput', false);
-    grid_cat = cat(1, dims_cat{:});
     
-    % evaluate beta at gridpoints
-    beta_eval = beta * grid_cat;
+    %% construct X, Y, Z interpolating grids
+    % add contributions from each interpolating function
+    beta_eval = sum(beta,2);
     % add zero rows for reference configuration
-    for i = 1:3
-        beta_eval = [beta_eval(1:ref_idxs(i)-1); 0; beta_eval(ref_idxs(i):end)];
+    for d = 1:3
+        beta_eval = [beta_eval(1:ref_idxs(d)-1); 0; beta_eval(ref_idxs(d):end)];
     end
     
     % reshape to X, Y, Z matrices
@@ -274,18 +254,33 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
     Y = reshape(beta_eval(1+n_nodes:2*n_nodes), size(grid{1}));
     Z = reshape(beta_eval(1+2*n_nodes:end), size(grid{1}));
     
+    % zero reference nodes
+    % introduces a static rotation to coordinates
+    if exist('ref', 'var')
+        % find reference configuration
+        ref_node = find(all(nodes == ref', 2));
+    else
+        % use center
+        ref_node = ceil(n_nodes/2);
+    end
+    ref_vals = beta_eval(ref_node + [0 1 2]*n_nodes);
+    X = X-ref_vals(1);
+    Y = Y-ref_vals(2);
+    Z = Z-ref_vals(3);
+    
     %% calculate optimized local connection
     % compute gradients
     [grad_X, grad_Y, grad_Z] = deal(cell(1,n_dim));
-    [grad_X{:}] = gradient(X, grid_points{:});
-    [grad_Y{:}] = gradient(Y, grid_points{:});
-    [grad_Z{:}] = gradient(Z, grid_points{:});
+    input_order = [2 1 3:n_dim]; %respect gradient's meshgrid desire
+    [grad_X{input_order}] = gradient(X, grid_points{input_order});
+    [grad_Y{input_order}] = gradient(Y, grid_points{input_order});
+    [grad_Z{input_order}] = gradient(Z, grid_points{input_order});
     % fill optimized LC
     A_opt = cell(size(A_orig));
     for dim = 1:n_dim
-        A_opt{1,dim} = A_orig{1,dim} + Z.*A_orig{2,dim} - Y.*A_orig{3,dim} + grad_X{dim};
-        A_opt{2,dim} = A_orig{2,dim} - Z.*A_orig{1,dim} + X.*A_orig{3,dim} + grad_Y{dim};
-        A_opt{3,dim} = A_orig{3,dim} + Y.*A_orig{1,dim} - X.*A_orig{2,dim} + grad_Z{dim};
+        A_opt{1,dim} = A_orig{1,dim} + Z.*A_orig{2,dim} - Y.*A_orig{3,dim} - grad_X{dim};
+        A_opt{2,dim} = A_orig{2,dim} + Z.*A_orig{1,dim} - X.*A_orig{3,dim} - grad_Y{dim};
+        A_opt{3,dim} = A_orig{3,dim} + Y.*A_orig{1,dim} - X.*A_orig{2,dim} - grad_Z{dim};
     end
 end
     
