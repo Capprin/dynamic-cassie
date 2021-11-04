@@ -13,8 +13,8 @@ function f = generate_exp_deriv
     % compute integral
     t = sym('t');
     grand = expm(-t*beta_mat) * d_beta_mat * expm(t*beta_mat);
-    p_exp_mat = int(grand, t, 0, 1);
-    matlabFunction(p_exp_mat,...
+    p_exp_mat = real(int(grand, t, 0, 1)); %ignore zero-valued complex part
+    f = matlabFunction(p_exp_mat,...
                    'file', 'exp_deriv',...
                    'vars', {beta_vec, d_beta_vec});
 end
