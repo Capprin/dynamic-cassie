@@ -157,7 +157,7 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
             
             % compute "vector field squared" terms
             x_rho_A_q = rho_q_dim(:, corner_idx) .* (A_zz + A_yy);
-            y_rho_A_q = rho_q_dim(:, corner_idx) .* (A_zz - A_xx);
+            y_rho_A_q = rho_q_dim(:, corner_idx) .* (A_zz + A_xx);
             z_rho_A_q = rho_q_dim(:, corner_idx) .* (A_yy + A_xx);
             % integrate
             x_rho_A = detJ * quad_weights_dim * (repmat(x_rho_A_q, 1, n_vertices) .* rho_q_dim);
@@ -184,14 +184,13 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
             
             
             % build each term (everywhere in cube)
-            % TODO: problem likely here (in off-diagonals) for 3D case
             x.xcols = grad_rho_dot_del{corner_idx} + x_rho_A;
             x.ycols = grad_rho_A_z_rho - rho_A_z_grad;
             x.zcols = -grad_rho_A_y_rho + rho_A_y_grad;
             
-            y.xcols = grad_rho_A_z_rho + rho_A_z_grad;
+            y.xcols = -grad_rho_A_z_rho + rho_A_z_grad;
             y.ycols = grad_rho_dot_del{corner_idx} + y_rho_A;
-            y.zcols = -grad_rho_A_x_rho - rho_A_x_grad;
+            y.zcols = grad_rho_A_x_rho - rho_A_x_grad;
             
             z.xcols = grad_rho_A_y_rho - rho_A_y_grad;
             z.ycols = -grad_rho_A_x_rho + rho_A_x_grad;
@@ -270,7 +269,6 @@ function [grid, X, Y, Z, A_opt] = optimize_so3(grid_points, A_orig, ref)
             d_exp_vec = rot_vec(d_exp_mat);
             % calc new LC
             A_opt{i}(:,d) = rot - d_exp_vec;
-            %A_opt{i}(:,d) = trans'*d_exp_vec;
         end
     end
     A_opt = celltensorconvert(A_opt);
