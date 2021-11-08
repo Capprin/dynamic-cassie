@@ -2,3 +2,4 @@
 cassieInertia.txt
 *.log
 test/*.mat
+exp_deriv.m
