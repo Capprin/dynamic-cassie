@@ -18,7 +18,3 @@ function f = generate_exp_deriv
                    'file', 'exp_deriv',...
                    'vars', {beta_vec, d_beta_vec});
 end
-
-function m = rot_mat(v)
-    m = [0 -v(3) v(2); v(3) 0 -v(1); -v(2) v(1) 0]; 
-end
