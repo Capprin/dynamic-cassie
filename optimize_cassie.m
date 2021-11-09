@@ -6,8 +6,8 @@
 %% variables
 % hip roll, hip pitch, hip yaw, knee, ankle
 % organized as [left, right] by index
-%motors = [[1 3 4], [1 3 4]+5];
-motors = [1, 6];
+motors = [[1 3 4], [1 3 4]+5];
+%motors = [1, 6];
 
 %% setup
 % constrain state space
