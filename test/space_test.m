@@ -26,37 +26,95 @@ Z_opt = [A_opt{3,1}(:)';A_opt{3,2}(:)'];
 n_opt = norm([mean(vecnorm(X_opt)) mean(vecnorm(Y_opt)) mean(vecnorm(Z_opt))]);
 disp(['Optimal norm-average metric: ', num2str(n_opt)]);
 
-%% plot outputs
+%% test gaits
+% create gait
+t_vec = linspace(0, 2*pi);
+alpha = @(t) 0.5*bound*[cos(t); sin(t)];
+d_alpha = @(t) 0.5*bound*[-sin(t); cos(t)];
+% vector for plotting
+alpha_vec = alpha(t_vec);
+% integrate over connection
+[g_circ_orig, g_orig] = so3_integrator(t_vec, alpha, d_alpha, grid, A_orig);
+[g_circ_opt, g_opt] = so3_integrator(t_vec, alpha, d_alpha, grid, A_opt);
+
+%% plot connections
 figure(1);clf;
 
 subplot(2,3,1);
+hold on;
 quiver(grid{1},grid{2},A_orig{1,1},A_orig{1,2}, 'Color', [0 0 0]);
-axis('square');
+plot(alpha_vec(1,:), alpha_vec(2,:), 'Color', [234 14 30]/255);
+axis('equal');
 xlabel('\alpha_1'); ylabel('\alpha_2');
 title('A_x, original coordinates');
 subplot(2,3,2);
+hold on;
 quiver(grid{1},grid{2},A_orig{2,1},A_orig{2,2}, 'Color', [0 0 0]);
-axis('square');
+plot(alpha_vec(1,:), alpha_vec(2,:), 'Color', [234 14 30]/255);
+axis('equal');
 xlabel('\alpha_1'); ylabel('\alpha_2');
 title('A_y, original coordinates');
 subplot(2,3,3);
+hold on;
 quiver(grid{1},grid{2},A_orig{3,1},A_orig{3,2}, 'Color', [0 0 0]);
-axis('square');
+plot(alpha_vec(1,:), alpha_vec(2,:), 'Color', [234 14 30]/255);
+axis('equal');
 xlabel('\alpha_1'); ylabel('\alpha_2');
 title('A_z, original coordinates');
 
 subplot(2,3,4);
+hold on;
 quiver(grid{1},grid{2},A_opt{1,1},A_opt{1,2}, 'Color', [0 0 0]);
-axis('square');
+plot(alpha_vec(1,:), alpha_vec(2,:), 'Color', [234 14 30]/255);
+axis('equal');
 xlabel('\alpha_1'); ylabel('\alpha_2');
 title('A_x, optimal coordinates');
 subplot(2,3,5);
+hold on;
 quiver(grid{1},grid{2},A_opt{2,1},A_opt{2,2}, 'Color', [0 0 0]);
-axis('square');
+plot(alpha_vec(1,:), alpha_vec(2,:), 'Color', [234 14 30]/255);
+axis('equal');
 xlabel('\alpha_1'); ylabel('\alpha_2');
 title('A_y, optimal coordinates');
 subplot(2,3,6);
+hold on;
 quiver(grid{1},grid{2},A_opt{3,1},A_opt{3,2}, 'Color', [0 0 0]);
-axis('square');
+plot(alpha_vec(1,:), alpha_vec(2,:), 'Color', [234 14 30]/255);
+axis('equal');
 xlabel('\alpha_1'); ylabel('\alpha_2');
 title('A_z, optimal coordinates');
+
+%% plot log coords
+figure(2); clf;
+
+subplot(2,3,1);
+plot(t_vec, g_circ_orig(1,:), 'Color', [234 14 30]/255);
+xlabel('Time');
+ylabel('Displacement');
+title('X Diplacement, Original Coordinates');
+subplot(2,3,2);
+plot(t_vec, g_circ_orig(2,:), 'Color', [234 14 30]/255);
+xlabel('Time');
+ylabel('Displacement');
+title('Y Diplacement, Original Coordinates');
+subplot(2,3,3);
+plot(t_vec, g_circ_orig(3,:), 'Color', [234 14 30]/255);
+xlabel('Time');
+ylabel('Displacement');
+title('Z Diplacement, Original Coordinates');
+
+subplot(2,3,4);
+plot(t_vec, g_circ_opt(1,:), 'Color', [234 14 30]/255);
+xlabel('Time');
+ylabel('Displacement');
+title('X Diplacement, Optimal Coordinates');
+subplot(2,3,5);
+plot(t_vec, g_circ_opt(2,:), 'Color', [234 14 30]/255);
+xlabel('Time');
+ylabel('Displacement');
+title('Y Diplacement, Optimal Coordinates');
+subplot(2,3,6);
+plot(t_vec, g_circ_opt(3,:), 'Color', [234 14 30]/255);
+xlabel('Time');
+ylabel('Displacement');
+title('Z Diplacement, Optimal Coordinates');
