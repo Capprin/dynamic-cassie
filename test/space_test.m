@@ -37,6 +37,10 @@ alpha_vec = alpha(t_vec);
 [g_circ_orig, g_orig] = so3_integrator(t_vec, alpha, d_alpha, grid, A_orig);
 [g_circ_opt, g_opt] = so3_integrator(t_vec, alpha, d_alpha, grid, A_opt);
 
+%% constraint curvature
+DA_orig = calc_ccf(samples, A_orig, @rot_mat, @rot_vec);
+DA_opt = calc_ccf(samples, A_opt, @rot_mat, @rot_vec);
+
 %% plot connections
 figure(1);clf;
 
@@ -118,3 +122,37 @@ plot(t_vec, g_circ_opt(3,:), 'Color', [234 14 30]/255);
 xlabel('Time');
 ylabel('Displacement');
 title('Z Diplacement, Optimal Coordinates');
+
+%% plot CCF
+figure(3); clf;
+subplot(2,3,1);
+contour(grid{1}, grid{2}, DA_orig{1});
+axis('equal');
+xlabel('\alpha_1'); ylabel('\alpha_2');
+title('X CCF, Original Coordinates');
+subplot(2,3,2);
+contour(grid{1}, grid{2}, DA_orig{2});
+axis('equal');
+xlabel('\alpha_1'); ylabel('\alpha_2');
+title('Y CCF, Original Coordinates');
+subplot(2,3,3);
+contour(grid{1}, grid{2}, DA_orig{3});
+axis('equal');
+xlabel('\alpha_1'); ylabel('\alpha_2');
+title('Z CCF, Original Coordinates');
+
+subplot(2,3,4);
+contour(grid{1}, grid{2}, DA_opt{1});
+axis('equal');
+xlabel('\alpha_1'); ylabel('\alpha_2');
+title('X CCF, Optimal Coordinates');
+subplot(2,3,5);
+contour(grid{1}, grid{2}, DA_opt{2});
+axis('equal');
+xlabel('\alpha_1'); ylabel('\alpha_2');
+title('Y CCF, Optimal Coordinates');
+subplot(2,3,6);
+contour(grid{1}, grid{2}, DA_opt{3});
+axis('equal');
+xlabel('\alpha_1'); ylabel('\alpha_2');
+title('Z CCF, Optimal Coordinates');

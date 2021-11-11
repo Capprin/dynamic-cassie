@@ -22,7 +22,11 @@ A_orig = [A_orig_full(3,:); z z; z z];
 A_opt_true = [A_opt_full(3,:); z z; z z];
 
 %% use optimize_so3.m on A_orig, grid to produce A_opt_test
+% optimize
 [grid_test, X, Y, Z, A_opt_test] = optimize_so3(grid_points, A_orig);
+% get CCF
+DA_orig = calc_ccf(grid_points, A_orig, @rot_mat, @rot_vec);
+DA_opt = calc_ccf(grid_points, A_opt_test, @rot_mat, @rot_vec);
 
 %% plot X fields for A_opt (use sysplotter fn for coloring?)
 figure(1); clf;
@@ -42,3 +46,16 @@ axis('square');
 xlim([-3 3]);
 xlabel('\alpha_1'); ylabel('\alpha_2');
 title('A_\theta, test minimum perturbation coordinates');
+
+%% plot CCF in orig, opt
+figure(2);clf;
+subplot(1,2,1);
+contour(grid_test{1}, grid_test{2}, DA_orig{1});
+axis('square');
+xlabel('\alpha_1'); ylabel('\alpha_2');
+title('Original CCF');
+subplot(1,2,2);
+contour(grid_test{1}, grid_test{2}, DA_opt{1});
+axis('square');
+xlabel('\alpha_1'); ylabel('\alpha_2');
+title('Optimal CCF');
