@@ -8,6 +8,11 @@
 % organized as [left, right] by index
 motors = [[1 3 4], [1 3 4]+5];
 %motors = [1, 6];
+% file names
+%infile = '6dof_3lvl_sweep.txt';
+%outfile = 'cassie3.mat';
+infile = 'cassieInertia5lvl.txt';
+outfile = 'cassie5.mat';
 
 %% setup
 % constrain state space
@@ -16,7 +21,8 @@ q_idx = [8 9 10 15 21 22 23 24 29 35]; %motor indices for qpos
 q_act = q_idx(motors);
 
 % load data
-raw = fileread('6dof_3lvl_sweep.txt');
+%raw = fileread('6dof_3lvl_sweep.txt');
+raw = fileread(infile);
 data_full = jsondecode(raw);
 cassie_sweep = data_full{2}; %ignore metadata
 
@@ -64,7 +70,7 @@ A = celltensorconvert(A);
 
 %% generate optimal coordinate transform
 [grid, X, Y, Z, A_opt] = optimize_so3(samples, A);
-save('cassie.mat', 'motors', 'A', 'samples', 'grid', 'X', 'Y', 'Z');
+save(outfile, 'motors', 'A', 'samples', 'grid', 'X', 'Y', 'Z');
 
 %% helper functions
 % generates local connection from a single M matrix
